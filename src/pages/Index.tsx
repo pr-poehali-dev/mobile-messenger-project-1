@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Icon from '@/components/ui/icon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ interface Message {
   timestamp: string;
   type: 'text' | 'file' | 'voice';
   fileName?: string;
+  status?: 'sent' | 'delivered' | 'read';
 }
 
 interface Chat {
@@ -38,12 +39,21 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState<'chats' | 'contacts' | 'groups' | 'status' | 'settings'>('chats');
   const [selectedChat, setSelectedChat] = useState<number | null>(1);
   const [messageText, setMessageText] = useState('');
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     { id: 1, text: 'Привет! Как дела?', sender: 'other', timestamp: '14:30', type: 'text' },
-    { id: 2, text: 'Отлично! Работаю над новым проектом', sender: 'me', timestamp: '14:32', type: 'text' },
+    { id: 2, text: 'Отлично! Работаю над новым проектом', sender: 'me', timestamp: '14:32', type: 'text', status: 'read' },
     { id: 3, text: 'Звучит интересно, расскажи подробнее', sender: 'other', timestamp: '14:33', type: 'text' },
-    { id: 4, text: 'Документация.pdf', sender: 'me', timestamp: '14:35', type: 'file', fileName: 'Документация.pdf' },
+    { id: 4, text: 'Документация.pdf', sender: 'me', timestamp: '14:35', type: 'file', fileName: 'Документация.pdf', status: 'delivered' },
   ]);
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
 
   const chats: Chat[] = [
     { id: 1, name: 'Анна Смирнова', avatar: '', lastMessage: 'Документация.pdf', time: '14:35', unread: 0, online: true },
@@ -67,11 +77,24 @@ const Index = () => {
       text: messageText,
       sender: 'me',
       timestamp: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
-      type: 'text'
+      type: 'text',
+      status: 'sent'
     };
     
     setMessages([...messages, newMessage]);
     setMessageText('');
+
+    setTimeout(() => {
+      setMessages(prev => prev.map(msg => 
+        msg.id === newMessage.id ? { ...msg, status: 'delivered' } : msg
+      ));
+    }, 1000);
+
+    setTimeout(() => {
+      setMessages(prev => prev.map(msg => 
+        msg.id === newMessage.id ? { ...msg, status: 'read' } : msg
+      ));
+    }, 2000);
   };
 
   const handleFileUpload = () => {
@@ -86,9 +109,22 @@ const Index = () => {
           sender: 'me',
           timestamp: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
           type: 'file',
-          fileName: file.name
+          fileName: file.name,
+          status: 'sent'
         };
         setMessages([...messages, newMessage]);
+
+        setTimeout(() => {
+          setMessages(prev => prev.map(msg => 
+            msg.id === newMessage.id ? { ...msg, status: 'delivered' } : msg
+          ));
+        }, 1000);
+
+        setTimeout(() => {
+          setMessages(prev => prev.map(msg => 
+            msg.id === newMessage.id ? { ...msg, status: 'read' } : msg
+          ));
+        }, 2000);
       }
     };
     input.click();
@@ -100,9 +136,22 @@ const Index = () => {
       text: 'Голосовое сообщение',
       sender: 'me',
       timestamp: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
-      type: 'voice'
+      type: 'voice',
+      status: 'sent'
     };
     setMessages([...messages, newMessage]);
+
+    setTimeout(() => {
+      setMessages(prev => prev.map(msg => 
+        msg.id === newMessage.id ? { ...msg, status: 'delivered' } : msg
+      ));
+    }, 1000);
+
+    setTimeout(() => {
+      setMessages(prev => prev.map(msg => 
+        msg.id === newMessage.id ? { ...msg, status: 'read' } : msg
+      ));
+    }, 2000);
   };
 
   const renderChatList = () => (
@@ -196,11 +245,28 @@ const Index = () => {
                 <span className="text-xs">0:15</span>
               </div>
             )}
-            <span className={`text-xs mt-1 block ${
-              message.sender === 'me' ? 'opacity-70' : 'text-muted-foreground'
+            <div className={`flex items-center gap-1 mt-1 text-xs ${
+              message.sender === 'me' ? 'opacity-70 justify-end' : 'text-muted-foreground'
             }`}>
-              {message.timestamp}
-            </span>
+              <span>{message.timestamp}</span>
+              {message.sender === 'me' && message.status && (
+                <span className="flex items-center">
+                  {message.status === 'sent' && <Icon name="Check" size={14} />}
+                  {message.status === 'delivered' && (
+                    <span className="flex">
+                      <Icon name="Check" size={14} className="-mr-2" />
+                      <Icon name="Check" size={14} />
+                    </span>
+                  )}
+                  {message.status === 'read' && (
+                    <span className="flex text-primary">
+                      <Icon name="Check" size={14} className="-mr-2" />
+                      <Icon name="Check" size={14} />
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       ))}
@@ -316,9 +382,21 @@ const Index = () => {
                 <Icon name="Lock" size={20} />
                 <span>Приватность</span>
               </div>
-              <div className="flex items-center gap-3 cursor-pointer hover:bg-secondary p-2 rounded-lg transition-colors">
-                <Icon name="Palette" size={20} />
-                <span>Тема оформления</span>
+              <div 
+                className="flex items-center justify-between cursor-pointer hover:bg-secondary p-2 rounded-lg transition-colors"
+                onClick={() => setIsDarkMode(!isDarkMode)}
+              >
+                <div className="flex items-center gap-3">
+                  <Icon name="Palette" size={20} />
+                  <span>Темная тема</span>
+                </div>
+                <div className={`w-12 h-6 rounded-full transition-colors ${
+                  isDarkMode ? 'bg-primary' : 'bg-muted'
+                } relative cursor-pointer`}>
+                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                    isDarkMode ? 'translate-x-7' : 'translate-x-1'
+                  }`} />
+                </div>
               </div>
               <div className="flex items-center gap-3 cursor-pointer hover:bg-secondary p-2 rounded-lg transition-colors">
                 <Icon name="HelpCircle" size={20} />
