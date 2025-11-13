@@ -45,15 +45,30 @@ interface Group {
   time: string;
 }
 
+interface Invitation {
+  id: number;
+  groupId: number;
+  groupName: string;
+  fromAdmin: string;
+  timestamp: string;
+}
+
 const Index = () => {
   const [activeTab, setActiveTab] = useState<'chats' | 'contacts' | 'groups' | 'settings'>('chats');
   const [isAdmin] = useState(true);
+  const [currentUserId] = useState(1);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<number[]>([]);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [selectedGroupForInvite, setSelectedGroupForInvite] = useState<number | null>(null);
+  const [invitations, setInvitations] = useState<Invitation[]>([
+    { id: 1, groupId: 3, groupName: 'Маркетинг команда', fromAdmin: 'Иван Петров', timestamp: 'Сейчас' },
+  ]);
   const [groups, setGroups] = useState<Group[]>([
     { id: 1, name: 'Команда разработки', avatar: '', members: [1, 2, 3], adminId: 1, lastMessage: 'Готов к созвону в 15:00', time: '13:22' },
     { id: 2, name: 'Дизайн обсуждение', avatar: '', members: [1, 4], adminId: 1, lastMessage: 'Посмотри новые макеты', time: 'Вчера' },
+    { id: 3, name: 'Маркетинг команда', avatar: '', members: [2, 3, 4], adminId: 2, lastMessage: 'Новая кампания запущена', time: 'Вчера' },
   ]);
   const [selectedChat, setSelectedChat] = useState<number | null>(1);
   const [messageText, setMessageText] = useState('');
@@ -94,11 +109,21 @@ const Index = () => {
       id: groups.length + 1,
       name: newGroupName,
       avatar: '',
-      members: selectedMembers,
-      adminId: 1,
+      members: [currentUserId, ...selectedMembers],
+      adminId: currentUserId,
       lastMessage: 'Группа создана',
       time: 'Сейчас'
     };
+    
+    selectedMembers.forEach(memberId => {
+      const newInvitation: Invitation = {
+        id: invitations.length + 1 + memberId,
+        groupId: newGroup.id,
+        groupName: newGroup.name,
+        fromAdmin: 'Вы',
+        timestamp: 'Сейчас'
+      };
+    });
     
     setGroups([...groups, newGroup]);
     setNewGroupName('');
@@ -106,12 +131,66 @@ const Index = () => {
     setShowCreateGroup(false);
   };
 
+  const handleSendInvitation = (groupId: number, contactId: number) => {
+    const group = groups.find(g => g.id === groupId);
+    if (!group || group.adminId !== currentUserId) return;
+    
+    const newInvitation: Invitation = {
+      id: invitations.length + 1,
+      groupId: group.id,
+      groupName: group.name,
+      fromAdmin: 'Администратор',
+      timestamp: 'Сейчас'
+    };
+    
+    setInvitations([...invitations, newInvitation]);
+  };
+
+  const handleAcceptInvitation = (invitationId: number) => {
+    const invitation = invitations.find(inv => inv.id === invitationId);
+    if (!invitation) return;
+    
+    setGroups(groups.map(group => 
+      group.id === invitation.groupId
+        ? { ...group, members: [...group.members, currentUserId] }
+        : group
+    ));
+    
+    setInvitations(invitations.filter(inv => inv.id !== invitationId));
+  };
+
+  const handleDeclineInvitation = (invitationId: number) => {
+    setInvitations(invitations.filter(inv => inv.id !== invitationId));
+  };
+
   const handleRemoveMember = (groupId: number, memberId: number) => {
     setGroups(groups.map(group => 
-      group.id === groupId && group.adminId === 1
+      group.id === groupId && group.adminId === currentUserId
         ? { ...group, members: group.members.filter(m => m !== memberId) }
         : group
     ));
+  };
+
+  const handleInviteToGroup = (groupId: number) => {
+    setSelectedGroupForInvite(groupId);
+    setShowInviteDialog(true);
+  };
+
+  const handleSendSelectedInvitations = () => {
+    if (!selectedGroupForInvite) return;
+    
+    const group = groups.find(g => g.id === selectedGroupForInvite);
+    if (!group) return;
+    
+    selectedMembers.forEach(memberId => {
+      if (!group.members.includes(memberId)) {
+        handleSendInvitation(selectedGroupForInvite, memberId);
+      }
+    });
+    
+    setSelectedMembers([]);
+    setShowInviteDialog(false);
+    setSelectedGroupForInvite(null);
   };
 
   const toggleMemberSelection = (contactId: number) => {
@@ -402,6 +481,45 @@ const Index = () => {
       case 'groups':
         return (
           <div className="space-y-2">
+            {invitations.length > 0 && (
+              <div className="px-2 mb-3">
+                <h3 className="text-sm font-semibold mb-2 text-muted-foreground">Приглашения</h3>
+                {invitations.map(invitation => (
+                  <Card key={invitation.id} className="p-3 mb-2">
+                    <div className="flex items-start gap-3">
+                      <Avatar className="mt-1">
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                          <Icon name="Users" size={20} />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{invitation.groupName}</p>
+                        <p className="text-xs text-muted-foreground">От: {invitation.fromAdmin}</p>
+                        <p className="text-xs text-muted-foreground">{invitation.timestamp}</p>
+                        <div className="flex gap-2 mt-2">
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleAcceptInvitation(invitation.id)}
+                            className="flex-1"
+                          >
+                            Принять
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleDeclineInvitation(invitation.id)}
+                            className="flex-1"
+                          >
+                            Отклонить
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+            
             {isAdmin && (
               <div className="px-2">
                 {!showCreateGroup ? (
@@ -465,8 +583,59 @@ const Index = () => {
                 )}
               </div>
             )}
+
+            {showInviteDialog && (
+              <div className="px-2 mb-3">
+                <Card className="p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold">Пригласить в группу</h3>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setShowInviteDialog(false);
+                        setSelectedMembers([]);
+                        setSelectedGroupForInvite(null);
+                      }}
+                    >
+                      <Icon name="X" size={16} />
+                    </Button>
+                  </div>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {contacts.filter(contact => {
+                      const group = groups.find(g => g.id === selectedGroupForInvite);
+                      return group && !group.members.includes(contact.id);
+                    }).map(contact => (
+                      <div
+                        key={contact.id}
+                        onClick={() => toggleMemberSelection(contact.id)}
+                        className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                          selectedMembers.includes(contact.id) ? 'bg-primary/20' : 'hover:bg-secondary'
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                          selectedMembers.includes(contact.id) ? 'bg-primary border-primary' : 'border-muted-foreground'
+                        }`}>
+                          {selectedMembers.includes(contact.id) && (
+                            <Icon name="Check" size={12} className="text-white" />
+                          )}
+                        </div>
+                        <span className="text-sm">{contact.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Button 
+                    className="w-full"
+                    onClick={handleSendSelectedInvitations}
+                    disabled={selectedMembers.length === 0}
+                  >
+                    Отправить приглашения
+                  </Button>
+                </Card>
+              </div>
+            )}
             
-            {groups.map((group) => (
+            {groups.filter(g => g.members.includes(currentUserId)).map((group) => (
               <div
                 key={group.id}
                 className="p-3 rounded-lg cursor-pointer transition-all hover:bg-secondary"
@@ -488,25 +657,49 @@ const Index = () => {
                   </div>
                 </div>
                 
-                {isAdmin && group.adminId === 1 && (
-                  <div className="mt-3 pt-3 border-t space-y-1">
-                    <p className="text-xs text-muted-foreground mb-2">Участники группы:</p>
+                {group.adminId === currentUserId && (
+                  <div className="mt-3 pt-3 border-t space-y-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-muted-foreground">Участники группы:</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleInviteToGroup(group.id)}
+                        className="h-7 text-xs"
+                      >
+                        <Icon name="UserPlus" size={14} className="mr-1" />
+                        Пригласить
+                      </Button>
+                    </div>
                     {group.members.map(memberId => {
                       const member = contacts.find(c => c.id === memberId);
-                      return member ? (
+                      const isCurrentUser = memberId === currentUserId;
+                      return member || isCurrentUser ? (
                         <div key={memberId} className="flex items-center justify-between p-2 rounded hover:bg-secondary/50">
-                          <span className="text-sm">{member.name}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveMember(group.id, memberId)}
-                            className="h-7 px-2"
-                          >
-                            <Icon name="X" size={14} />
-                          </Button>
+                          <span className="text-sm">
+                            {isCurrentUser ? 'Вы (Админ)' : member?.name}
+                          </span>
+                          {!isCurrentUser && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveMember(group.id, memberId)}
+                              className="h-7 px-2"
+                            >
+                              <Icon name="X" size={14} />
+                            </Button>
+                          )}
                         </div>
                       ) : null;
                     })}
+                  </div>
+                )}
+                
+                {group.adminId !== currentUserId && (
+                  <div className="mt-3 pt-3 border-t">
+                    <p className="text-xs text-muted-foreground">
+                      Участников: {group.members.length}
+                    </p>
                   </div>
                 )}
               </div>
