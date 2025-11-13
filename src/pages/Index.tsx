@@ -54,6 +54,15 @@ interface Invitation {
 }
 
 const Index = () => {
+  const [isRegistered, setIsRegistered] = useState(() => {
+    return localStorage.getItem('userRegistered') === 'true';
+  });
+  const [registrationData, setRegistrationData] = useState({
+    firstName: '',
+    lastName: '',
+    phone: ''
+  });
+  const [registrationError, setRegistrationError] = useState('');
   const [activeTab, setActiveTab] = useState<'chats' | 'contacts' | 'groups' | 'settings'>('chats');
   const [isAdmin] = useState(true);
   const [currentUserId] = useState(1);
@@ -199,6 +208,42 @@ const Index = () => {
         ? prev.filter(id => id !== contactId)
         : [...prev, contactId]
     );
+  };
+
+  const validatePhone = (phone: string) => {
+    const phoneRegex = /^\+?[1-9]\d{10,14}$/;
+    return phoneRegex.test(phone.replace(/\s/g, ''));
+  };
+
+  const handleRegistration = () => {
+    setRegistrationError('');
+
+    if (!registrationData.firstName.trim()) {
+      setRegistrationError('Введите имя');
+      return;
+    }
+
+    if (!registrationData.lastName.trim()) {
+      setRegistrationError('Введите фамилию');
+      return;
+    }
+
+    if (!registrationData.phone.trim()) {
+      setRegistrationError('Введите номер телефона');
+      return;
+    }
+
+    if (!validatePhone(registrationData.phone)) {
+      setRegistrationError('Неверный формат телефона. Пример: +79991234567');
+      return;
+    }
+
+    localStorage.setItem('userRegistered', 'true');
+    localStorage.setItem('userFirstName', registrationData.firstName);
+    localStorage.setItem('userLastName', registrationData.lastName);
+    localStorage.setItem('userPhone', registrationData.phone);
+    
+    setIsRegistered(true);
   };
 
   const handleSendMessage = () => {
@@ -711,11 +756,16 @@ const Index = () => {
           <div className="p-4 space-y-4">
             <div className="flex items-center gap-4 p-4 rounded-lg bg-card">
               <Avatar className="w-16 h-16">
-                <AvatarFallback className="bg-primary text-primary-foreground text-xl">Я</AvatarFallback>
+                <AvatarFallback className="bg-primary text-primary-foreground text-xl">
+                  {localStorage.getItem('userFirstName')?.charAt(0) || 'Я'}
+                </AvatarFallback>
               </Avatar>
               <div>
-                <h3 className="font-semibold">Мой профиль</h3>
-                <p className="text-sm text-muted-foreground">В сети</p>
+                <h3 className="font-semibold">
+                  {localStorage.getItem('userFirstName')} {localStorage.getItem('userLastName')}
+                </h3>
+                <p className="text-sm text-muted-foreground">{localStorage.getItem('userPhone')}</p>
+                <p className="text-xs text-muted-foreground">В сети</p>
               </div>
             </div>
             
@@ -755,6 +805,84 @@ const Index = () => {
         return null;
     }
   };
+
+  if (!isRegistered) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md p-6 space-y-6 animate-fade-in">
+          <div className="text-center space-y-2">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center">
+                <Icon name="MessageCircle" size={32} className="text-primary-foreground" />
+              </div>
+            </div>
+            <h1 className="text-2xl font-bold">Добро пожаловать!</h1>
+            <p className="text-muted-foreground">Зарегистрируйтесь для начала работы</p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Имя <span className="text-destructive">*</span>
+              </label>
+              <Input
+                placeholder="Введите имя"
+                value={registrationData.firstName}
+                onChange={(e) => setRegistrationData(prev => ({ ...prev, firstName: e.target.value }))}
+                onKeyPress={(e) => e.key === 'Enter' && handleRegistration()}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Фамилия <span className="text-destructive">*</span>
+              </label>
+              <Input
+                placeholder="Введите фамилию"
+                value={registrationData.lastName}
+                onChange={(e) => setRegistrationData(prev => ({ ...prev, lastName: e.target.value }))}
+                onKeyPress={(e) => e.key === 'Enter' && handleRegistration()}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Номер телефона <span className="text-destructive">*</span>
+              </label>
+              <Input
+                placeholder="+79991234567"
+                value={registrationData.phone}
+                onChange={(e) => setRegistrationData(prev => ({ ...prev, phone: e.target.value }))}
+                onKeyPress={(e) => e.key === 'Enter' && handleRegistration()}
+              />
+              <p className="text-xs text-muted-foreground">Формат: +7 (999) 123-45-67</p>
+            </div>
+
+            {registrationError && (
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg animate-fade-in">
+                <p className="text-sm text-destructive flex items-center gap-2">
+                  <Icon name="AlertCircle" size={16} />
+                  {registrationError}
+                </p>
+              </div>
+            )}
+
+            <Button 
+              className="w-full" 
+              size="lg"
+              onClick={handleRegistration}
+            >
+              Зарегистрироваться
+            </Button>
+          </div>
+
+          <div className="text-center text-xs text-muted-foreground pt-4 border-t">
+            Нажимая кнопку, вы соглашаетесь с условиями использования
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-background">
