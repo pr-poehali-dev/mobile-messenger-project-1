@@ -35,8 +35,26 @@ interface Contact {
   online: boolean;
 }
 
+interface Group {
+  id: number;
+  name: string;
+  avatar: string;
+  members: number[];
+  adminId: number;
+  lastMessage: string;
+  time: string;
+}
+
 const Index = () => {
-  const [activeTab, setActiveTab] = useState<'chats' | 'contacts' | 'groups' | 'status' | 'settings'>('chats');
+  const [activeTab, setActiveTab] = useState<'chats' | 'contacts' | 'groups' | 'settings'>('chats');
+  const [isAdmin] = useState(true);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [selectedMembers, setSelectedMembers] = useState<number[]>([]);
+  const [groups, setGroups] = useState<Group[]>([
+    { id: 1, name: 'Команда разработки', avatar: '', members: [1, 2, 3], adminId: 1, lastMessage: 'Готов к созвону в 15:00', time: '13:22' },
+    { id: 2, name: 'Дизайн обсуждение', avatar: '', members: [1, 4], adminId: 1, lastMessage: 'Посмотри новые макеты', time: 'Вчера' },
+  ]);
   const [selectedChat, setSelectedChat] = useState<number | null>(1);
   const [messageText, setMessageText] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -68,6 +86,41 @@ const Index = () => {
     { id: 3, name: 'Елена Козлова', avatar: '', status: 'В сети', online: true },
     { id: 4, name: 'Дмитрий Иванов', avatar: '', status: 'Был вчера', online: false },
   ];
+
+  const handleCreateGroup = () => {
+    if (!newGroupName.trim() || selectedMembers.length === 0) return;
+    
+    const newGroup: Group = {
+      id: groups.length + 1,
+      name: newGroupName,
+      avatar: '',
+      members: selectedMembers,
+      adminId: 1,
+      lastMessage: 'Группа создана',
+      time: 'Сейчас'
+    };
+    
+    setGroups([...groups, newGroup]);
+    setNewGroupName('');
+    setSelectedMembers([]);
+    setShowCreateGroup(false);
+  };
+
+  const handleRemoveMember = (groupId: number, memberId: number) => {
+    setGroups(groups.map(group => 
+      group.id === groupId && group.adminId === 1
+        ? { ...group, members: group.members.filter(m => m !== memberId) }
+        : group
+    ));
+  };
+
+  const toggleMemberSelection = (contactId: number) => {
+    setSelectedMembers(prev => 
+      prev.includes(contactId)
+        ? prev.filter(id => id !== contactId)
+        : [...prev, contactId]
+    );
+  };
 
   const handleSendMessage = () => {
     if (!messageText.trim()) return;
@@ -348,16 +401,116 @@ const Index = () => {
         return renderContactList();
       case 'groups':
         return (
-          <div className="text-center py-12 text-muted-foreground">
-            <Icon name="Users" size={64} className="mx-auto mb-4 opacity-20" />
-            <p>Групповые чаты</p>
-          </div>
-        );
-      case 'status':
-        return (
-          <div className="text-center py-12 text-muted-foreground">
-            <Icon name="Circle" size={64} className="mx-auto mb-4 opacity-20" />
-            <p>Статусы</p>
+          <div className="space-y-2">
+            {isAdmin && (
+              <div className="px-2">
+                {!showCreateGroup ? (
+                  <Button 
+                    className="w-full"
+                    onClick={() => setShowCreateGroup(true)}
+                  >
+                    <Icon name="Plus" size={16} className="mr-2" />
+                    Создать группу
+                  </Button>
+                ) : (
+                  <Card className="p-3 space-y-3">
+                    <Input 
+                      placeholder="Название группы"
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                    />
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      <p className="text-xs text-muted-foreground mb-2">Выберите участников:</p>
+                      {contacts.map(contact => (
+                        <div
+                          key={contact.id}
+                          onClick={() => toggleMemberSelection(contact.id)}
+                          className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                            selectedMembers.includes(contact.id) ? 'bg-primary/20' : 'hover:bg-secondary'
+                          }`}
+                        >
+                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                            selectedMembers.includes(contact.id) ? 'bg-primary border-primary' : 'border-muted-foreground'
+                          }`}>
+                            {selectedMembers.includes(contact.id) && (
+                              <Icon name="Check" size={12} className="text-white" />
+                            )}
+                          </div>
+                          <span className="text-sm">{contact.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => {
+                          setShowCreateGroup(false);
+                          setNewGroupName('');
+                          setSelectedMembers([]);
+                        }}
+                      >
+                        Отмена
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={handleCreateGroup}
+                      >
+                        Создать
+                      </Button>
+                    </div>
+                  </Card>
+                )}
+              </div>
+            )}
+            
+            {groups.map((group) => (
+              <div
+                key={group.id}
+                className="p-3 rounded-lg cursor-pointer transition-all hover:bg-secondary"
+              >
+                <div className="flex items-center gap-3">
+                  <Avatar>
+                    <AvatarFallback className="bg-primary text-primary-foreground">
+                      <Icon name="Users" size={20} />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-baseline mb-1">
+                      <h3 className="font-medium text-sm truncate">{group.name}</h3>
+                      <span className="text-xs text-muted-foreground ml-2">{group.time}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {group.members.length} участников
+                    </p>
+                  </div>
+                </div>
+                
+                {isAdmin && group.adminId === 1 && (
+                  <div className="mt-3 pt-3 border-t space-y-1">
+                    <p className="text-xs text-muted-foreground mb-2">Участники группы:</p>
+                    {group.members.map(memberId => {
+                      const member = contacts.find(c => c.id === memberId);
+                      return member ? (
+                        <div key={memberId} className="flex items-center justify-between p-2 rounded hover:bg-secondary/50">
+                          <span className="text-sm">{member.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveMember(group.id, memberId)}
+                            className="h-7 px-2"
+                          >
+                            <Icon name="X" size={14} />
+                          </Button>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         );
       case 'settings':
@@ -432,7 +585,6 @@ const Index = () => {
               { id: 'chats', icon: 'MessageCircle', label: 'Чаты' },
               { id: 'contacts', icon: 'Users', label: 'Контакты' },
               { id: 'groups', icon: 'Users', label: 'Группы' },
-              { id: 'status', icon: 'Circle', label: 'Статусы' },
               { id: 'settings', icon: 'Settings', label: 'Настройки' },
             ].map((tab) => (
               <button
